@@ -297,8 +297,9 @@ func awss3(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(path, "/") {
 		if c.directoryListing {
-			s3listFiles(w, r, c.s3Bucket, c.s3KeyPrefix+path)
-			return
+			if !s3listFiles(w, r, c.indexDocument, c.s3Bucket, c.s3KeyPrefix+path) {
+				return
+			}
 		}
 		path += c.indexDocument
 	}
@@ -372,7 +373,8 @@ func getObjsFromS3(req *s3.ListObjectsInput, key string) (*s3.ListObjectsOutput,
 	return result, err
 }
 
-func s3listFiles(w http.ResponseWriter, r *http.Request, backet, key string) {
+func s3listFiles(w http.ResponseWriter, r *http.Request, index, backet, key string) (hasIndex bool) {
+	hasIndex = false
 	if strings.HasPrefix(key, "/") {
 		key = key[1:]
 	}
@@ -408,6 +410,10 @@ func s3listFiles(w http.ResponseWriter, r *http.Request, backet, key string) {
 	}
 	files := []string{}
 	for file := range candidates {
+		if file == index {
+			hasIndex = true
+			return
+		}
 		files = append(files, file)
 	}
 	sort.Sort(objects(files))
@@ -433,6 +439,7 @@ func s3listFiles(w http.ResponseWriter, r *http.Request, backet, key string) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	fmt.Fprintln(w, string(bytes))
+	return
 }
 
 func awsSession() *session.Session {
